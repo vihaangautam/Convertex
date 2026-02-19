@@ -227,20 +227,6 @@ fun ContertexApp() {
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-
-            // Dynamic bottom displays
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = if (isUsdToInr) "₹ " else "$ ",
-                    color = TextGray,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                Text(formattedConverted, color = Color.White, fontSize = 64.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-2).sp)
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = if (isUsdToInr) "Indian Rupee" else "US Dollar",
                 color = PrimaryBlue,
