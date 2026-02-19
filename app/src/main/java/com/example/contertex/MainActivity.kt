@@ -44,6 +44,81 @@ val KeypadBg = Color(0xFF151E28)
 val PillBg = Color(0xFF1E293B)
 val GreenTrend = Color(0xFF22C55E)
 
+// --- Formatting Helpers ---
+
+/**
+ * Formats a number using the Indian numbering system (lakhs, crores).
+ * e.g. 1234567.89 -> "12,34,567.89"
+ */
+fun formatIndian(value: Double, showDecimal: Boolean): String {
+    val intPart = value.toLong()
+    val decPart = value - intPart
+
+    // Format integer part with Indian grouping
+    val intStr = intPart.toString()
+    val formatted = StringBuilder()
+
+    if (intStr.length <= 3) {
+        formatted.append(intStr)
+    } else {
+        // Last 3 digits, then groups of 2
+        val last3 = intStr.takeLast(3)
+        val remaining = intStr.dropLast(3)
+        val remainingFormatted = remaining.reversed().chunked(2).joinToString(",").reversed()
+        formatted.append(remainingFormatted)
+        formatted.append(",")
+        formatted.append(last3)
+    }
+
+    return if (showDecimal && decPart != 0.0) {
+        val dec = String.format(Locale.US, "%.2f", decPart).drop(2) // gets digits after "0."
+        "$formatted.$dec"
+    } else {
+        formatted.toString()
+    }
+}
+
+/**
+ * Formats a number using the US/Western numbering system (thousands).
+ * e.g. 1234567.89 -> "1,234,567.89"
+ */
+fun formatUS(value: Double, showDecimal: Boolean): String {
+    return if (showDecimal && value % 1.0 != 0.0) {
+        String.format(Locale.US, "%,.2f", value)
+    } else {
+        String.format(Locale.US, "%,.0f", value)
+    }
+}
+
+/**
+ * Formats the raw input string for display in the input box.
+ * Uses Indian system when INR is the input (isUsdToInr == false),
+ * and US system when USD is the input (isUsdToInr == true).
+ */
+fun formatInput(inputAmount: String, isUsdToInr: Boolean): String {
+    if (inputAmount.isEmpty()) return "0"
+    val parts = inputAmount.split(".")
+    val intPartLong = parts[0].toLongOrNull() ?: return inputAmount
+
+    val intFormatted = if (isUsdToInr) {
+        // USD input -> US commas
+        String.format(Locale.US, "%,d", intPartLong)
+    } else {
+        // INR input -> Indian commas
+        val intStr = intPartLong.toString()
+        if (intStr.length <= 3) {
+            intStr
+        } else {
+            val last3 = intStr.takeLast(3)
+            val remaining = intStr.dropLast(3)
+            val remainingFormatted = remaining.reversed().chunked(2).joinToString(",").reversed()
+            "$remainingFormatted,$last3"
+        }
+    }
+
+    return if (parts.size > 1) "$intFormatted.${parts[1]}" else intFormatted
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,11 +140,8 @@ fun ContertexApp() {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // State variables
     var inputAmount by remember { mutableStateOf("1") }
     var currentRate by remember { mutableStateOf(91.16) }
-
-    // NEW: Track the direction of conversion
     var isUsdToInr by remember { mutableStateOf(true) }
 
     // Fetch rate logic
@@ -105,7 +177,7 @@ fun ContertexApp() {
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        // --- TOP SECTION (UI) ---
+        // --- TOP SECTION ---
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -114,7 +186,6 @@ fun ContertexApp() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Header
             Text("Convertex", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(24.dp))
             Text("Enter Amount", color = TextGray, fontSize = 14.sp)
@@ -127,7 +198,6 @@ fun ContertexApp() {
                     .background(InputBg, RoundedCornerShape(12.dp))
                     .padding(horizontal = 20.dp, vertical = 16.dp)
             ) {
-                // Dynamic top symbol
                 Text(
                     text = if (isUsdToInr) "$" else "₹",
                     color = TextGray,
@@ -135,14 +205,8 @@ fun ContertexApp() {
                     modifier = Modifier.align(Alignment.CenterStart)
                 )
 
-                // Format the input text with commas for display
-                val formattedInput = if (inputAmount.isEmpty()) "0" else {
-                    val parts = inputAmount.split(".")
-                    val intPart = parts[0].toLongOrNull()?.let {
-                        String.format(Locale.getDefault(), "%,d", it)
-                    } ?: parts[0]
-                    if (parts.size > 1) "$intPart.${parts[1]}" else intPart
-                }
+                // Use correct comma system for input display
+                val formattedInput = formatInput(inputAmount, isUsdToInr)
 
                 Text(
                     text = formattedInput,
@@ -152,7 +216,6 @@ fun ContertexApp() {
                     modifier = Modifier.align(Alignment.Center)
                 )
 
-                // Dynamic top currency code
                 Text(
                     text = if (isUsdToInr) "USD" else "INR",
                     color = TextGray,
@@ -162,19 +225,19 @@ fun ContertexApp() {
                 )
             }
 
-            // Connector Arrow (Now a clickable swap button!)
+            // Swap Button
             Spacer(modifier = Modifier.height(16.dp))
             Box(modifier = Modifier.width(1.dp).height(24.dp).background(TextGray.copy(alpha = 0.3f)))
             Box(
                 modifier = Modifier
-                    .size(40.dp) // Made slightly larger so it's easier to tap
-                    .clip(CircleShape) // Ensures the tap ripple effect is perfectly round
+                    .size(40.dp)
+                    .clip(CircleShape)
                     .background(InputBg)
-                    .clickable { isUsdToInr = !isUsdToInr }, // Flips the state when tapped
+                    .clickable { isUsdToInr = !isUsdToInr },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.SwapVert, // New two-way arrow icon
+                    imageVector = Icons.Rounded.SwapVert,
                     contentDescription = "Swap Currencies",
                     tint = TextGray,
                     modifier = Modifier.size(22.dp)
@@ -183,26 +246,24 @@ fun ContertexApp() {
             Box(modifier = Modifier.width(1.dp).height(24.dp).background(TextGray.copy(alpha = 0.3f)))
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Result Area Logic
-            // Result Area Logic
+            // Result calculation
             val inputValue = inputAmount.toDoubleOrNull() ?: 0.0
             val convertedAmount = if (isUsdToInr) inputValue * currentRate else inputValue / currentRate
+            val hasDecimal = convertedAmount % 1.0 != 0.0
 
-            val formattedConverted = if (convertedAmount % 1.0 == 0.0) {
-                String.format(Locale.getDefault(), "%,.0f", convertedAmount)
+            // Use Indian commas for INR output (USD->INR), US commas for USD output (INR->USD)
+            val formattedConverted = if (isUsdToInr) {
+                formatIndian(convertedAmount, hasDecimal)
             } else {
-                String.format(Locale.getDefault(), "%,.2f", convertedAmount)
+                formatUS(convertedAmount, hasDecimal)
             }
 
-            // 1. Shrink font size if the number is massively long
             val dynamicFontSize = if (formattedConverted.length > 10) 44.sp else 64.sp
 
-            // 2. Wrap in a Box to keep it perfectly centered
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                // 3. Make the Row horizontally scrollable
                 Row(
                     verticalAlignment = Alignment.Bottom,
                     modifier = Modifier.horizontalScroll(rememberScrollState())
@@ -220,8 +281,8 @@ fun ContertexApp() {
                         fontSize = dynamicFontSize,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = (-2).sp,
-                        maxLines = 1,          // Strictly forbid wrapping to a new line
-                        softWrap = false       // Keep it as one solid block of text
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -241,18 +302,16 @@ fun ContertexApp() {
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Dynamic pill text (shows inverted rate if converting INR to USD)
                 val pillText = if (isUsdToInr) {
-                    val formattedRate = String.format(Locale.getDefault(), "%,.2f", currentRate)
+                    val formattedRate = String.format(Locale.US, "%,.2f", currentRate)
                     "1 USD ≈ ₹ $formattedRate"
                 } else {
                     val invertedRate = 1.0 / currentRate
-                    val formattedRate = String.format(Locale.getDefault(), "%,.4f", invertedRate)
+                    val formattedRate = String.format(Locale.US, "%,.4f", invertedRate)
                     "1 INR ≈ $ $formattedRate"
                 }
 
                 Text(pillText, color = TextGray, fontSize = 12.sp)
-
                 Spacer(modifier = Modifier.width(8.dp))
                 Icon(
                     imageVector = Icons.Rounded.TrendingUp,
@@ -263,7 +322,7 @@ fun ContertexApp() {
             }
         }
 
-        // --- BOTTOM SECTION (KEYPAD) ---
+        // --- KEYPAD ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
